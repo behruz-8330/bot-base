@@ -377,7 +377,7 @@ async def main():
     start_all_projects_auto()
     asyncio.create_task(scheduled_backup_task())
     asyncio.create_task(dp.start_polling(bot))
-    config = uvicorn.Config(app, host="0.0.0.0", port=8080, log_level="info")
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
     server = uvicorn.Server(config)
     await server.serve()
 
