@@ -100,7 +100,7 @@ async def cb_help_import(callback: types.CallbackQuery):
         "2. O'sha yuborgan ZIP faylingizga **reply** qilib quyidagi buyruqni yozing:\n"
         "`/import <loyiha_nomi>`\n\n"
         "Masalan: `/import scheduler-bot`\n\n"
-        "Shundan so'ng bot uni avtomatik o'rnatadi, kerakli kutubxonalarini (`requirements.txt`) o'rnatib, 24/7 yurgizib yuboradi.",
+        "Shundan so'ng bot uni avtomatik o'rnatadi, barcha talab qilingan kutubxonalarini o'rnatib beradi va 24/7 yurgizib yuboradi.",
         reply_markup=get_main_menu()
     )
 
@@ -112,7 +112,7 @@ async def cmd_import(message: types.Message):
         
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer("❌ Iltimos, loyiha nomini yozing. Masalan: `/import test_bot`")
+        await message.answer("❌ Iltimos, loyiha nomini yozing. Masalan: `/import scheduler-bot`")
         return
         
     project_name = parts[1].strip()
@@ -142,13 +142,13 @@ async def cmd_import(message: types.Message):
             zip_ref.extractall(proj_path)
         os.remove(zip_path)
         
-        # 1. Agar sub-loyihada requirements.txt bo'lsa, uni avtomatik o'rnatamiz
+        # Kutubxonalarni o'rnatish
         req_file = os.path.join(proj_path, "requirements.txt")
         if os.path.exists(req_file):
             await status_msg.edit_text(f"📦 `{project_name}` uchun kutubxonalar o'rnatilmoqda (`pip install`)...\nIltimos kuting ⏱")
-            subprocess.run(["pip", "install", "-r", req_file], cwd=proj_path, check=True)
+            subprocess.run(["python", "-m", "pip", "install", "-r", req_file], cwd=proj_path, check=True)
 
-        # 2. Loyihani ishga tushiramiz
+        # Loyihani ishga tushirish
         main_file = os.path.join(proj_path, "main.py")
         if os.path.exists(main_file):
             process = subprocess.Popen(
@@ -207,11 +207,10 @@ def start_all_projects_auto():
         proj_path = os.path.join(BASE_DIR, proj)
         main_file = os.path.join(proj_path, "main.py")
         
-        # Avto yoqishda ham kutubxonalarni tekshirib o'rnatib ketadi
         req_file = os.path.join(proj_path, "requirements.txt")
         if os.path.exists(req_file):
             try:
-                subprocess.run(["pip", "install", "-r", req_file], cwd=proj_path, check=True)
+                subprocess.run(["python", "-m", "pip", "install", "-r", req_file], cwd=proj_path, check=True)
             except Exception as e:
                 print(f"Kutubxonalarni o'rnatishda xato ({proj}): {e}")
 
