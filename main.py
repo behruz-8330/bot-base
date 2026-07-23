@@ -37,6 +37,7 @@ class SessionStates(StatesGroup):
 def get_main_menu():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🟢 Faol loyihalar", callback_data="list_projects")],
+        [InlineKeyboardButton(text="🗑 Loyihani o'chirish (Remove)", callback_data="remove_project_menu")],
         [InlineKeyboardButton(text="🔑 Sessiya yaratish", callback_data="create_session_start")],
         [InlineKeyboardButton(text="📦 Tezkor Backup olish", callback_data="fast_backup")],
         [InlineKeyboardButton(text="📥 Loyiha import qilish (.zip)", callback_data="help_import")],
@@ -72,6 +73,48 @@ async def cb_list_projects(callback: types.CallbackQuery):
         text += f"• **{proj}** — {status}\n"
         
     await callback.message.edit_text(text, reply_markup=get_main_menu())
+
+# --- LOYIHANI O'CHIRISH (REMOVE) MENYusi ---
+@dp.callback_query(F.data == "remove_project_menu")
+async def cb_remove_project_menu(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+        
+    projects = [d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))]
+    if not projects:
+        await callback.message.edit_text("ℹ️ O'chirish uchun loyihalar topilmadi.", reply_markup=get_main_menu())
+        return
+        
+    buttons = []
+    for proj in projects:
+        buttons.append([InlineKeyboardButton(text=f"🗑 O'chirish: {proj}", callback_data=f"del_proj_{proj}")])
+    buttons.append([InlineKeyboardButton(text="⬅️ Ortga", callback_data="back_to_menu")])
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await callback.message.edit_text("🗑 **O'chirmoqchi bo'lgan loyihangizni tanlang:**", reply_markup=keyboard)
+
+@dp.callback_query(F.data.startswith("del_proj_"))
+async def cb_delete_project_action(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+        
+    project_name = callback.data.replace("del_proj_", "")
+    proj_path = os.path.join(BASE_DIR, project_name)
+    
+    # Agar jarayon ishlab turgan bo'lsa, to'xtatamiz
+    if project_name in running_processes:
+        try:
+            running_processes[project_name].terminate()
+            del running_processes[project_name]
+        except Exception:
+            pass
+            
+    # Papkani butunlay o'chirib tashlaymiz
+    if os.path.exists(proj_path):
+        shutil.rmtree(proj_path)
+        await callback.message.edit_text(f"✅ `{project_name}` loyihasi muvaffaqiyatli o'chirib tashlandi!", reply_markup=get_main_menu())
+    else:
+        await callback.message.edit_text(f"⚠️ `{project_name}` loyihasi topilmadi yoki allaqachon o'chirilgan.", reply_markup=get_main_menu())
 
 # --- 2. SESSIYA YARATISH JARAYONI ---
 @dp.callback_query(F.data == "create_session_start")
