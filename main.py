@@ -6,7 +6,7 @@ import subprocess
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile, Message
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
@@ -156,7 +156,6 @@ async def process_phone(message: types.Message, state: FSMContext):
         elif lib == "pyrogram":
             from pyrogram import Client
             
-            # Pyrogram uchun vaqtinchalik nom bilan client ochamiz
             client = Client("temp_session", api_id=api_id, api_hash=api_hash, in_memory=True)
             await client.connect()
             sent = await client.send_code(phone)
@@ -441,9 +440,8 @@ async def scheduled_backup_task():
         await asyncio.sleep(12 * 60 * 60)
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-            zip_filename = os.path.join(BACKUP_DIR, `f"auto_backup_{timestamp}.zip"`replace('_','')) # safety fix
-            # simplified for safety
             zip_filename = os.path.join(BACKUP_DIR, f"auto_backup_{timestamp}.zip")
+            
             shutil.make_archive(zip_filename.replace('.zip', ''), 'zip', BASE_DIR)
             
             with open(zip_filename, "rb") as f:
