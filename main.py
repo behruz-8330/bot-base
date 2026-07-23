@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # --- SOZLAMALAR ---
-TOKEN = "8746921322:AAESSZswzjovLzDFD6N6CCA29D7qYxh4fPI"
+TOKEN = "8746921322:AAG9islan9MRD5dA9q7uyhFGHPNKWxGO4cw"
 ADMIN_ID = 6926668577  
 BACKUP_GROUP_ID = -1004339696809
 WEB_APP_URL = "https://bot-base-production-9d4a.up.railway.app"  # Mini App manzili
@@ -41,13 +41,13 @@ class SessionStates(StatesGroup):
 
 def get_main_menu():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="ð  Fayl Muharriri (Mini App)", web_app=WebAppInfo(url=WEB_APP_URL))],
-        [InlineKeyboardButton(text="ð¢ Faol loyihalar", callback_data="list_projects")],
-        [InlineKeyboardButton(text="ð Loyihani o'chirish (Remove)", callback_data="remove_project_menu")],
-        [InlineKeyboardButton(text="ð Sessiya yaratish", callback_data="create_session_start")],
-        [InlineKeyboardButton(text="ð¦ Tezkor Backup olish", callback_data="fast_backup")],
-        [InlineKeyboardButton(text="ð¥ Loyiha import qilish (.zip)", callback_data="help_import")],
-        [InlineKeyboardButton(text="ð Serverni yangilash / Qayta yoqish", callback_data="restart_all")]
+        [InlineKeyboardButton(text="Ã°ÂÂÂ  Fayl Muharriri (Mini App)", web_app=WebAppInfo(url=WEB_APP_URL))],
+        [InlineKeyboardButton(text="Ã°ÂÂÂ¢ Faol loyihalar", callback_data="list_projects")],
+        [InlineKeyboardButton(text="Ã°ÂÂÂ Loyihani o'chirish (Remove)", callback_data="remove_project_menu")],
+        [InlineKeyboardButton(text="Ã°ÂÂÂ Sessiya yaratish", callback_data="create_session_start")],
+        [InlineKeyboardButton(text="Ã°ÂÂÂ¦ Tezkor Backup olish", callback_data="fast_backup")],
+        [InlineKeyboardButton(text="Ã°ÂÂÂ¥ Loyiha import qilish (.zip)", callback_data="help_import")],
+        [InlineKeyboardButton(text="Ã°ÂÂÂ Serverni yangilash / Qayta yoqish", callback_data="restart_all")]
     ])
     return keyboard
 
@@ -56,7 +56,7 @@ async def cmd_start(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return
     await message.answer(
-        "ð¤ **Railway Bot Manager paneliga xush kelibsiz!**\n\n"
+        "Ã°ÂÂ¤Â **Railway Bot Manager paneliga xush kelibsiz!**\n\n"
         "Quyidagi tugmalar yordamida barcha loyihalarni boshqarishingiz mumkin:",
         reply_markup=get_main_menu()
     )
@@ -67,12 +67,12 @@ async def cb_list_projects(callback: types.CallbackQuery):
         return
     projects = [d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))]
     if not projects:
-        await callback.message.edit_text("â¹ï¸ Hozirda loyihalar yo'q.", reply_markup=get_main_menu())
+        await callback.message.edit_text("Ã¢ÂÂ¹Ã¯Â¸Â Hozirda loyihalar yo'q.", reply_markup=get_main_menu())
         return
-    text = "ð¢ **Loyihalar holati:**\n\n"
+    text = "Ã°ÂÂÂ¢ **Loyihalar holati:**\n\n"
     for proj in projects:
-        status = "ð¢ Ishlayapti" if proj in running_processes else "ð´ To'xtagan"
-        text += f"â¢ **{proj}** â {status}\n"
+        status = "Ã°ÂÂÂ¢ Ishlayapti" if proj in running_processes else "Ã°ÂÂÂ´ To'xtagan"
+        text += f"Ã¢ÂÂ¢ **{proj}** Ã¢ÂÂ {status}\n"
     await callback.message.edit_text(text, reply_markup=get_main_menu())
 
 @dp.callback_query(F.data == "remove_project_menu")
@@ -81,11 +81,11 @@ async def cb_remove_project_menu(callback: types.CallbackQuery):
         return
     projects = [d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))]
     if not projects:
-        await callback.message.edit_text("â¹ï¸ O'chirish uchun loyihalar topilmadi.", reply_markup=get_main_menu())
+        await callback.message.edit_text("Ã¢ÂÂ¹Ã¯Â¸Â O'chirish uchun loyihalar topilmadi.", reply_markup=get_main_menu())
         return
-    buttons = [[InlineKeyboardButton(text=f"ð O'chirish: {proj}", callback_data=f"del_proj_{proj}")] for proj in projects]
-    buttons.append([InlineKeyboardButton(text="â¬ï¸ Ortga", callback_data="back_to_menu")])
-    await callback.message.edit_text("ð **O'chirmoqchi bo'lgan loyihangizni tanlang:**", reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+    buttons = [[InlineKeyboardButton(text=f"Ã°ÂÂÂ O'chirish: {proj}", callback_data=f"del_proj_{proj}")] for proj in projects]
+    buttons.append([InlineKeyboardButton(text="Ã¢Â¬ÂÃ¯Â¸Â Ortga", callback_data="back_to_menu")])
+    await callback.message.edit_text("Ã°ÂÂÂ **O'chirmoqchi bo'lgan loyihangizni tanlang:**", reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
 
 @dp.callback_query(F.data.startswith("del_proj_"))
 async def cb_delete_project_action(callback: types.CallbackQuery):
@@ -100,9 +100,9 @@ async def cb_delete_project_action(callback: types.CallbackQuery):
         except: pass
     if os.path.exists(proj_path):
         shutil.rmtree(proj_path)
-        await callback.message.edit_text(f"â `{project_name}` o'chirildi!", reply_markup=get_main_menu())
+        await callback.message.edit_text(f"Ã¢ÂÂ `{project_name}` o'chirildi!", reply_markup=get_main_menu())
     else:
-        await callback.message.edit_text(f"â ï¸ Topilmadi.", reply_markup=get_main_menu())
+        await callback.message.edit_text(f"Ã¢ÂÂ Ã¯Â¸Â Topilmadi.", reply_markup=get_main_menu())
 
 @dp.callback_query(F.data == "create_session_start")
 async def cb_create_session(callback: types.CallbackQuery, state: FSMContext):
@@ -110,16 +110,16 @@ async def cb_create_session(callback: types.CallbackQuery, state: FSMContext):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Telethon", callback_data="lib_telethon"),
          InlineKeyboardButton(text="Pyrogram", callback_data="lib_pyrogram")],
-        [InlineKeyboardButton(text="â¬ï¸ Ortga", callback_data="back_to_menu")]
+        [InlineKeyboardButton(text="Ã¢Â¬ÂÃ¯Â¸Â Ortga", callback_data="back_to_menu")]
     ])
-    await callback.message.edit_text("ð **Kutubxonani tanlang:**", reply_markup=keyboard)
+    await callback.message.edit_text("Ã°ÂÂÂ **Kutubxonani tanlang:**", reply_markup=keyboard)
     await state.set_state(SessionStates.waiting_for_lib)
 
 @dp.callback_query(SessionStates.waiting_for_lib, F.data.startswith("lib_"))
 async def cb_select_lib(callback: types.CallbackQuery, state: FSMContext):
     lib_name = callback.data.split("_")[1]
     await state.update_data(library=lib_name)
-    await callback.message.edit_text(f"â Tanlandi: **{lib_name.capitalize()}**\n\n**API_ID** raqamini yuboring:")
+    await callback.message.edit_text(f"Ã¢ÂÂ Tanlandi: **{lib_name.capitalize()}**\n\n**API_ID** raqamini yuboring:")
     await state.set_state(SessionStates.waiting_for_api_id)
 
 @dp.message(SessionStates.waiting_for_api_id)
@@ -127,16 +127,16 @@ async def process_api_id(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID: return
     try:
         await state.update_data(api_id=int(message.text.strip()))
-        await message.answer("ð **API_HASH** matnini yuboring:")
+        await message.answer("Ã°ÂÂÂ **API_HASH** matnini yuboring:")
         await state.set_state(SessionStates.waiting_for_api_hash)
     except ValueError:
-        await message.answer("â Faqat raqam bo'lishi kerak:")
+        await message.answer("Ã¢ÂÂ Faqat raqam bo'lishi kerak:")
 
 @dp.message(SessionStates.waiting_for_api_hash)
 async def process_api_hash(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID: return
     await state.update_data(api_hash=message.text.strip())
-    await message.answer("ð Telefon raqamingizni yuboring (Masalan: `+998901234567`):")
+    await message.answer("Ã°ÂÂÂ Telefon raqamingizni yuboring (Masalan: `+998901234567`):")
     await state.set_state(SessionStates.waiting_for_phone)
 
 @dp.message(SessionStates.waiting_for_phone)
@@ -145,7 +145,7 @@ async def process_phone(message: types.Message, state: FSMContext):
     phone = message.text.strip()
     await state.update_data(phone=phone)
     data = await state.get_data()
-    status_msg = await message.answer(f"â³ Kod yuborilmoqda...")
+    status_msg = await message.answer(f"Ã¢ÂÂ³ Kod yuborilmoqda...")
     try:
         if data["library"] == "telethon":
             from telethon import TelegramClient
@@ -160,10 +160,10 @@ async def process_phone(message: types.Message, state: FSMContext):
             await client.connect()
             sent = await client.send_code(phone)
             await state.update_data(client=client, phone_code_hash=sent.phone_code_hash)
-        await status_msg.edit_text("ð¥ Kod keldi. Uni bo'sh joy bilan yuboring (Masalan: `1 2 3 4 5`):")
+        await status_msg.edit_text("Ã°ÂÂÂ¥ Kod keldi. Uni bo'sh joy bilan yuboring (Masalan: `1 2 3 4 5`):")
         await state.set_state(SessionStates.waiting_for_code)
     except Exception as e:
-        await status_msg.edit_text(f"â Xatolik: {e}")
+        await status_msg.edit_text(f"Ã¢ÂÂ Xatolik: {e}")
         await state.clear()
 
 @dp.message(SessionStates.waiting_for_code)
@@ -177,26 +177,26 @@ async def process_code(message: types.Message, state: FSMContext):
             try:
                 await data["client"].sign_in(data["phone"], code, phone_code_hash=data["phone_code_hash"])
             except SessionPasswordNeededError:
-                await message.answer("ð Ikki bosqichli parol kiritilsin:")
+                await message.answer("Ã°ÂÂÂ Ikki bosqichli parol kiritilsin:")
                 await state.set_state(SessionStates.waiting_for_password)
                 return
             s_session = data["client"].session.save()
             await data["client"].disconnect()
-            await message.answer(f"ð **Telethon Session:**\n\n`{s_session}`", reply_markup=get_main_menu())
+            await message.answer(f"Ã°ÂÂÂ **Telethon Session:**\n\n`{s_session}`", reply_markup=get_main_menu())
         else:
             from pyrogram.errors import SessionPasswordNeededError
             try:
                 await data["client"].sign_in(data["phone"], data["phone_code_hash"], code)
             except SessionPasswordNeededError:
-                await message.answer("ð Ikki bosqichli parol kiritilsin:")
+                await message.answer("Ã°ÂÂÂ Ikki bosqichli parol kiritilsin:")
                 await state.set_state(SessionStates.waiting_for_password)
                 return
             s_session = await data["client"].export_session_string()
             await data["client"].disconnect()
-            await message.answer(f"ð **Pyrogram Session:**\n\n`{s_session}`", reply_markup=get_main_menu())
+            await message.answer(f"Ã°ÂÂÂ **Pyrogram Session:**\n\n`{s_session}`", reply_markup=get_main_menu())
         await state.clear()
     except Exception as e:
-        await message.answer(f"â Xatolik: {e}")
+        await message.answer(f"Ã¢ÂÂ Xatolik: {e}")
         await state.clear()
 
 @dp.message(SessionStates.waiting_for_password)
@@ -212,22 +212,22 @@ async def process_password(message: types.Message, state: FSMContext):
             await data["client"].check_password(message.text.strip())
             s_session = await data["client"].export_session_string()
             await data["client"].disconnect()
-        await message.answer(f"ð **Session:**\n\n`{s_session}`", reply_markup=get_main_menu())
+        await message.answer(f"Ã°ÂÂÂ **Session:**\n\n`{s_session}`", reply_markup=get_main_menu())
         await state.clear()
     except Exception as e:
-        await message.answer(f"â Parol xato: {e}")
+        await message.answer(f"Ã¢ÂÂ Parol xato: {e}")
         await state.clear()
 
 @dp.callback_query(F.data == "back_to_menu")
 async def cb_back(callback: types.CallbackQuery, state: FSMContext):
     if callback.from_user.id != ADMIN_ID: return
     await state.clear()
-    await callback.message.edit_text("ð¤ **Panel:**", reply_markup=get_main_menu())
+    await callback.message.edit_text("Ã°ÂÂ¤Â **Panel:**", reply_markup=get_main_menu())
 
 @dp.callback_query(F.data == "fast_backup")
 async def cb_fast_backup(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
-    await callback.message.edit_text("â³ Backup tayyorlanmoqda...")
+    await callback.message.edit_text("Ã¢ÂÂ³ Backup tayyorlanmoqda...")
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     zip_filename = os.path.join(BACKUP_DIR, f"bot_backup_{timestamp}.zip")
     try:
@@ -236,28 +236,28 @@ async def cb_fast_backup(callback: types.CallbackQuery):
             file_bytes = f.read()
         await bot.send_document(callback.from_user.id, BufferedInputFile(file_bytes, filename=f"backup_{timestamp}.zip"))
         os.remove(zip_filename)
-        await callback.message.edit_text("â Yuborildi!", reply_markup=get_main_menu())
+        await callback.message.edit_text("Ã¢ÂÂ Yuborildi!", reply_markup=get_main_menu())
     except Exception as e:
-        await callback.message.edit_text(f"â Xato: {e}", reply_markup=get_main_menu())
+        await callback.message.edit_text(f"Ã¢ÂÂ Xato: {e}", reply_markup=get_main_menu())
 
 @dp.callback_query(F.data == "help_import")
 async def cb_help_import(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
-    await callback.message.edit_text("ð¥ `.zip` faylga reply qilib `/import <loyiha_nomi>` yozing.", reply_markup=get_main_menu())
+    await callback.message.edit_text("Ã°ÂÂÂ¥ `.zip` faylga reply qilib `/import <loyiha_nomi>` yozing.", reply_markup=get_main_menu())
 
 @dp.message(Command("import"))
 async def cmd_import(message: types.Message):
     if message.from_user.id != ADMIN_ID: return
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer("â Loyiha nomini yozing: `/import name`")
+        await message.answer("Ã¢ÂÂ Loyiha nomini yozing: `/import name`")
         return
     project_name = parts[1].strip()
     reply = message.reply_to_message
     if not reply or not reply.document or not reply.document.file_name.endswith('.zip'):
-        await message.answer("â .zip faylga reply qiling!")
+        await message.answer("Ã¢ÂÂ .zip faylga reply qiling!")
         return
-    status_msg = await message.answer(f"â³ O'rnatilmoqda...")
+    status_msg = await message.answer(f"Ã¢ÂÂ³ O'rnatilmoqda...")
     proj_path = os.path.join(BASE_DIR, project_name)
     if os.path.exists(proj_path):
         if project_name in running_processes:
@@ -280,11 +280,11 @@ async def cmd_import(message: types.Message):
             process = subprocess.Popen(["python", main_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=proj_path)
             running_processes[project_name] = process
             asyncio.create_task(monitor_project(project_name, process))
-            await status_msg.edit_text(f"â `{project_name}` ishga tushdi!", reply_markup=get_main_menu())
+            await status_msg.edit_text(f"Ã¢ÂÂ `{project_name}` ishga tushdi!", reply_markup=get_main_menu())
         else:
-            await status_msg.edit_text(f"â ï¸ `main.py` topilmadi!", reply_markup=get_main_menu())
+            await status_msg.edit_text(f"Ã¢ÂÂ Ã¯Â¸Â `main.py` topilmadi!", reply_markup=get_main_menu())
     except Exception as e:
-        await status_msg.edit_text(f"â Xato: {e}", reply_markup=get_main_menu())
+        await status_msg.edit_text(f"Ã¢ÂÂ Xato: {e}", reply_markup=get_main_menu())
 
 @dp.callback_query(F.data == "restart_all")
 async def cb_restart(callback: types.CallbackQuery):
@@ -293,7 +293,7 @@ async def cb_restart(callback: types.CallbackQuery):
         proc.terminate()
     running_processes.clear()
     start_all_projects_auto()
-    await callback.message.edit_text("ð Qayta yoqildi!", reply_markup=get_main_menu())
+    await callback.message.edit_text("Ã°ÂÂÂ Qayta yoqildi!", reply_markup=get_main_menu())
 
 async def monitor_project(project_name, process):
     while True:
@@ -301,7 +301,7 @@ async def monitor_project(project_name, process):
         if retcode is not None:
             stderr_output = process.stderr.read() if process.stderr else "Noma'lum"
             try:
-                await bot.send_message(ADMIN_ID, f"ð¨ **Crash:** `{project_name}`\n`{stderr_output[-800:]}`")
+                await bot.send_message(ADMIN_ID, f"Ã°ÂÂÂ¨ **Crash:** `{project_name}`\n`{stderr_output[-800:]}`")
             except: pass
             if project_name in running_processes:
                 del running_processes[project_name]
@@ -385,7 +385,7 @@ def _create_bg_task(coro):
             return
         exc = t.exception()
         if exc:
-            print(f"ð¨ Background task crashed: {exc!r}")
+            print(f"Ã°ÂÂÂ¨ Background task crashed: {exc!r}")
 
     task.add_done_callback(_on_done)
     return task
