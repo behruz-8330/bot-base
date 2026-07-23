@@ -6,7 +6,9 @@ import subprocess
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile, Message
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
 
 # --- SOZLAMALAR ---
 TOKEN = "8746921322:AAESSZswzjovLzDFD6N6CCA29D7qYxh4fPI"
@@ -22,10 +24,20 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 running_processes = {}
 
+# --- FSM (Holatlar) ---
+class SessionStates(StatesGroup):
+    waiting_for_lib = State()
+    waiting_for_api_id = State()
+    waiting_for_api_hash = State()
+    waiting_for_phone = State()
+    waiting_for_code = State()
+    waiting_for_password = State()
+
 # --- ASOSIY MENYU TUGMALARI ---
 def get_main_menu():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🟢 Faol loyihalar", callback_data="list_projects")],
+        [InlineKeyboardButton(text="🔑 Sessiya yaratish", callback_data="create_session_start")],
         [InlineKeyboardButton(text="📦 Tezkor Backup olish", callback_data="fast_backup")],
         [InlineKeyboardButton(text="📥 Loyiha import qilish (.zip)", callback_data="help_import")],
         [InlineKeyboardButton(text="🔄 Serverni yangilash / Qayta yoqish", callback_data="restart_all")]
@@ -61,7 +73,205 @@ async def cb_list_projects(callback: types.CallbackQuery):
         
     await callback.message.edit_text(text, reply_markup=get_main_menu())
 
-# --- 2. TEZKOR BACKUP OLISH ---
+# --- 2. SESSIYA YARATISH JARAYONI ---
+@dp.callback_query(F.data == "create_session_start")
+async def cb_create_session(callback: types.CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Telethon", callback_data="lib_telethon"),
+         InlineKeyboardButton(text="Pyrogram", callback_data="lib_pyrogram")],
+        [InlineKeyboardButton(text="⬅️ Ortga", callback_data="back_to_menu")]
+    ])
+    
+    await callback.message.edit_text(
+        "🔑 **Sessiya yaratish uchun kutubxonani tanlang:**",
+        reply_markup=keyboard
+    )
+    await state.set_state(SessionStates.waiting_for_lib)
+
+@dp.callback_query(SessionStates.waiting_for_lib, F.data.startswith("lib_"))
+async def cb_select_lib(callback: types.CallbackQuery, state: FSMContext):
+    lib_name = callback.data.split("_")[1]
+    await state.update_data(library=lib_name)
+    
+    await callback.message.edit_text(
+        f"✅ Tanlandi: **{lib_name.capitalize()}**\n\n"
+        "Iltimos, Telegram ilovasidan olgan **API_ID** raqamingizni yuboring:"
+    )
+    await state.set_state(SessionStates.waiting_for_api_id)
+
+@dp.message(SessionStates.waiting_for_api_id)
+async def process_api_id(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    try:
+        api_id = int(message.text.strip())
+        await state.update_data(api_id=api_id)
+        await message.answer("🔑 Endi esa **API_HASH** matnini yuboring:")
+        await state.set_state(SessionStates.waiting_for_api_hash)
+    except ValueError:
+        await message.answer("❌ API_ID faqat raqamlardan iborat bo'lishi kerak. Qaytadan yuboring:")
+
+@dp.message(SessionStates.waiting_for_api_hash)
+async def process_api_hash(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    await state.update_data(api_hash=message.text.strip())
+    await message.answer("📞 Telefon raqamingizni xalqaro formatda yuboring (Masalan: `+998901234567`):")
+    await state.set_state(SessionStates.waiting_for_phone)
+
+@dp.message(SessionStates.waiting_for_phone)
+async def process_phone(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    
+    phone = message.text.strip()
+    await state.update_data(phone=phone)
+    data = await state.get_data()
+    
+    lib = data["library"]
+    api_id = data["api_id"]
+    api_hash = data["api_hash"]
+    
+    status_msg = await message.answer(f"⏳ Telegramdan tasdiqlash kodi yuborilmoqda ({lib})...")
+    
+    try:
+        if lib == "telethon":
+            from telethon import TelegramClient
+            from telethon.sessions import StringSession
+            
+            client = TelegramClient(StringSession(), api_id, api_hash)
+            await client.connect()
+            sent = await client.send_code_request(phone)
+            await state.update_data(client=client, phone_code_hash=sent.phone_code_hash)
+            
+            await status_msg.edit_text(
+                "📥 Telegram ilovangizga kod keldi.\n"
+                "Iltimos, kodni raqamlar orasiga bo'sh joy qo'yib yuboring (Masalan: `1 2 3 4 5`):"
+            )
+            await state.set_state(SessionStates.waiting_for_code)
+            
+        elif lib == "pyrogram":
+            from pyrogram import Client
+            
+            # Pyrogram uchun vaqtinchalik nom bilan client ochamiz
+            client = Client("temp_session", api_id=api_id, api_hash=api_hash, in_memory=True)
+            await client.connect()
+            sent = await client.send_code(phone)
+            await state.update_data(client=client, phone_code_hash=sent.phone_code_hash)
+            
+            await status_msg.edit_text(
+                "📥 Telegram ilovangizga Pyrogram uchun kod keldi.\n"
+                "Iltimos, kodni raqamlar orasiga bo'sh joy qo'yib yuboring (Masalan: `1 2 3 4 5`):"
+            )
+            await state.set_state(SessionStates.waiting_for_code)
+            
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Xatolik yuz berdi: {e}\n\nQaytadan boshlash uchun /start bosing.")
+        await state.clear()
+
+@dp.message(SessionStates.waiting_for_code)
+async def process_code(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+        
+    code = message.text.strip().replace(" ", "")
+    data = await state.get_data()
+    lib = data["library"]
+    client = data["client"]
+    phone = data["phone"]
+    phone_code_hash = data["phone_code_hash"]
+    
+    try:
+        if lib == "telethon":
+            from telethon.errors import SessionPasswordNeededError
+            try:
+                await client.sign_in(phone, code, phone_code_hash=phone_code_hash)
+            except SessionPasswordNeededError:
+                await message.answer("🔒 Akkauntingizda ikki bosqichli autentifikatsiya (Password) yoqilgan ekan. Iltimos, parolingizni yuboring:")
+                await state.set_state(SessionStates.waiting_for_password)
+                return
+                
+            string_session = client.session.save()
+            await client.disconnect()
+            
+            await message.answer(
+                f"🎉 **Telethon Session muvaffaqiyatli yaratildi!**\n\n"
+                f"Quyidagi string-sessiyani nusxalab oling:\n\n`{string_session}`",
+                reply_markup=get_main_menu()
+            )
+            await state.clear()
+            
+        elif lib == "pyrogram":
+            from pyrogram.errors import SessionPasswordNeededError
+            try:
+                await client.sign_in(phone, phone_code_hash, code)
+            except SessionPasswordNeededError:
+                await message.answer("🔒 Akkauntingizda ikki bosqichli autentifikatsiya (Password) yoqilgan ekan. Iltimos, parolingizni yuboring:")
+                await state.set_state(SessionStates.waiting_for_password)
+                return
+                
+            string_session = await client.export_session_string()
+            await client.disconnect()
+            
+            await message.answer(
+                f"🎉 **Pyrogram Session muvaffaqiyatli yaratildi!**\n\n"
+                f"Quyidagi string-sessiyani nusxalab oling:\n\n`{string_session}`",
+                reply_markup=get_main_menu()
+            )
+            await state.clear()
+            
+    except Exception as e:
+        await message.answer(f"❌ Kodni tasdiqlashda xatolik: {e}\n\nQaytadan urinish uchun /start bosing.")
+        await state.clear()
+
+@dp.message(SessionStates.waiting_for_password)
+async def process_password(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+        
+    password = message.text.strip()
+    data = await state.get_data()
+    lib = data["library"]
+    client = data["client"]
+    
+    try:
+        if lib == "telethon":
+            await client.sign_in(password=password)
+            string_session = client.session.save()
+            await client.disconnect()
+            
+            await message.answer(
+                f"🎉 **Telethon Session muvaffaqiyatli yaratildi!**\n\n`{string_session}`",
+                reply_markup=get_main_menu()
+            )
+        elif lib == "pyrogram":
+            await client.check_password(password)
+            string_session = await client.export_session_string()
+            await client.disconnect()
+            
+            await message.answer(
+                f"🎉 **Pyrogram Session muvaffaqiyatli yaratildi!**\n\n`{string_session}`",
+                reply_markup=get_main_menu()
+            )
+        await state.clear()
+    except Exception as e:
+        await message.answer(f"❌ Parolni tekshirishda xatolik: {e}\n\nQaytadan /start bosing.")
+        await state.clear()
+
+@dp.callback_query(F.data == "back_to_menu")
+async def cb_back(callback: types.CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    await state.clear()
+    await callback.message.edit_text(
+        "🤖 **Railway Bot Manager paneliga xush kelibsiz!**",
+        reply_markup=get_main_menu()
+    )
+
+# --- 3. TEZKOR BACKUP OLISH ---
 @dp.callback_query(F.data == "fast_backup")
 async def cb_fast_backup(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
@@ -89,7 +299,7 @@ async def cb_fast_backup(callback: types.CallbackQuery):
     except Exception as e:
         await callback.message.edit_text(f"❌ Xatolik yuz berdi: {e}", reply_markup=get_main_menu())
 
-# --- 3. IMPORT QILISH YO'RIQNOMASI ---
+# --- 4. IMPORT QILISH YO'RIQNOMASI ---
 @dp.callback_query(F.data == "help_import")
 async def cb_help_import(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
@@ -99,12 +309,11 @@ async def cb_help_import(callback: types.CallbackQuery):
         "1. Yangi loyihangizni `.zip` formatida chatga yuboring.\n"
         "2. O'sha yuborgan ZIP faylingizga **reply** qilib quyidagi buyruqni yozing:\n"
         "`/import <loyiha_nomi>`\n\n"
-        "Masalan: `/import scheduler-bot`\n\n"
-        "Shundan so'ng bot uni avtomatik o'rnatadi, barcha talab qilingan kutubxonalarini o'rnatib beradi va 24/7 yurgizib yuboradi.",
+        "Masalan: `/import scheduler-bot`",
         reply_markup=get_main_menu()
     )
 
-# --- ZIP ORQALI IMPORT QILISH BUYRUĞI (.import <name>) ---
+# --- ZIP ORQALI IMPORT QILISH ---
 @dp.message(Command("import"))
 async def cmd_import(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -142,13 +351,11 @@ async def cmd_import(message: types.Message):
             zip_ref.extractall(proj_path)
         os.remove(zip_path)
         
-        # Kutubxonalarni o'rnatish
         req_file = os.path.join(proj_path, "requirements.txt")
         if os.path.exists(req_file):
-            await status_msg.edit_text(f"📦 `{project_name}` uchun kutubxonalar o'rnatilmoqda (`pip install`)...\nIltimos kuting ⏱")
+            await status_msg.edit_text(f"📦 Kutubxonalar o'rnatilmoqda (`pip install`)...\nIltimos kuting ⏱")
             subprocess.run(["python", "-m", "pip", "install", "-r", req_file], cwd=proj_path, check=True)
 
-        # Loyihani ishga tushirish
         main_file = os.path.join(proj_path, "main.py")
         if os.path.exists(main_file):
             process = subprocess.Popen(
@@ -166,7 +373,7 @@ async def cmd_import(message: types.Message):
     except Exception as e:
         await status_msg.edit_text(f"❌ Xatolik yuz berdi: {e}", reply_markup=get_main_menu())
 
-# --- 4. SERVERNI QAYTA YOQISH ---
+# --- 5. SERVERNI QAYTA YOQISH ---
 @dp.callback_query(F.data == "restart_all")
 async def cb_restart(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
@@ -228,14 +435,15 @@ def start_all_projects_auto():
             except Exception as e:
                 print(f"Xato ({proj}): {e}")
 
-# --- 12 SOATLIK AVTO-BACKUP FON REJIMI ---
+# --- 12 SOATLIK AVTO-BACKUP ---
 async def scheduled_backup_task():
     while True:
         await asyncio.sleep(12 * 60 * 60)
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+            zip_filename = os.path.join(BACKUP_DIR, `f"auto_backup_{timestamp}.zip"`replace('_','')) # safety fix
+            # simplified for safety
             zip_filename = os.path.join(BACKUP_DIR, f"auto_backup_{timestamp}.zip")
-            
             shutil.make_archive(zip_filename.replace('.zip', ''), 'zip', BASE_DIR)
             
             with open(zip_filename, "rb") as f:
@@ -245,11 +453,7 @@ async def scheduled_backup_task():
             await bot.send_document(
                 chat_id=BACKUP_GROUP_ID,
                 document=input_file,
-                caption=(
-                    f"🔄 **Avtomatik 12 soatlik Volume Backup**\n\n"
-                    f"📅 Sana va vaqt: `{timestamp}`\n"
-                    f"⚙️ Holat: Barcha loyihalar va bazalar (`.db`) xavfsiz saqlandi."
-                )
+                caption=f"🔄 **Avtomatik 12 soatlik Volume Backup**\n📅 Sana: `{timestamp}`"
             )
             os.remove(zip_filename)
         except Exception as e:
