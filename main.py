@@ -6,14 +6,20 @@ import subprocess
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile, WebAppInfo
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
+
+# --- FASTAPI IMPORTLARI ---
+from fastapi import FastAPI, HTTPException, Body
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 # --- SOZLAMALAR ---
 TOKEN = "8746921322:AAESSZswzjovLzDFD6N6CCA29D7qYxh4fPI"
 ADMIN_ID = 6926668577  # Sizning Admin ID'ingiz
 BACKUP_GROUP_ID = -1004339696809
+WEB_APP_URL = "https://SIZNING_DOMEN_YOKI_NGROK.uz"  # Mini App ishlaydigan manzil
 
 BASE_DIR = "/data/bot"
 BACKUP_DIR = "/data/backups"
@@ -36,6 +42,7 @@ class SessionStates(StatesGroup):
 # --- ASOSIY MENYU TUGMALARI ---
 def get_main_menu():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🛠 Fayl Muharriri (Mini App)", web_app=WebAppInfo(url=WEB_APP_URL))],
         [InlineKeyboardButton(text="🟢 Faol loyihalar", callback_data="list_projects")],
         [InlineKeyboardButton(text="🗑 Loyihani o'chirish (Remove)", callback_data="remove_project_menu")],
         [InlineKeyboardButton(text="🔑 Sessiya yaratish", callback_data="create_session_start")],
@@ -74,7 +81,7 @@ async def cb_list_projects(callback: types.CallbackQuery):
         
     await callback.message.edit_text(text, reply_markup=get_main_menu())
 
-# --- LOYIHANI O'CHIRISH (REMOVE) MENYusi ---
+# --- LOYIHANI O'CHIRISH (REMOVE) MENYUSI ---
 @dp.callback_query(F.data == "remove_project_menu")
 async def cb_remove_project_menu(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
@@ -101,7 +108,6 @@ async def cb_delete_project_action(callback: types.CallbackQuery):
     project_name = callback.data.replace("del_proj_", "")
     proj_path = os.path.join(BASE_DIR, project_name)
     
-    # Agar jarayon ishlab turgan bo'lsa, to'xtatamiz
     if project_name in running_processes:
         try:
             running_processes[project_name].terminate()
@@ -109,7 +115,6 @@ async def cb_delete_project_action(callback: types.CallbackQuery):
         except Exception:
             pass
             
-    # Papkani butunlay o'chirib tashlaymiz
     if os.path.exists(proj_path):
         shutil.rmtree(proj_path)
         await callback.message.edit_text(f"✅ `{project_name}` loyihasi muvaffaqiyatli o'chirib tashlandi!", reply_markup=get_main_menu())
@@ -500,11 +505,70 @@ async def scheduled_backup_task():
         except Exception as e:
             print(f"Avtomatik backup xatosi: {e}")
 
+
+# --- FASTAPI SERVERI VA FAYL MUHARRIRI API'LARI ---
+app = FastAPI()
+
+class FileSaveRequest(BaseModel):
+    path: str
+    content: str
+
+@app.get("/api/files")
+def list_files(path: str = ""):
+    current_path = os.path.normpath(os.path.join(BASE_DIR, path))
+    if not current_path.startswith(BASE_DIR):
+        raise HTTPException(status_code=400, detail="Noto'g'ri yo'l")
+    
+    if not os.path.exists(current_path):
+        raise HTTPException(status_code=404, detail="Papka topilmadi")
+        
+    items = []
+    for entry in os.scandir(current_path):
+        items.append({
+            "name": entry.name,
+            "is_dir": entry.is_dir(),
+            "path": os.path.relpath(entry.path, BASE_DIR)
+        })
+    return items
+
+@app.get("/api/read")
+def read_file(path: str):
+    file_path = os.path.normpath(os.path.join(BASE_DIR, path))
+    if not file_path.startswith(BASE_DIR) or not os.path.isfile(file_path):
+        raise HTTPException(status_code=400, detail="Fayl topilmadi")
+        
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    return {"content": content}
+
+@app.post("/api/save")
+def save_file(data: FileSaveRequest):
+    file_path = os.path.normpath(os.path.join(BASE_DIR, data.path))
+    if not file_path.startswith(BASE_DIR):
+        raise HTTPException(status_code=400, detail="Noto'g'ri yo'l")
+        
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(data.content)
+    return {"status": "success"}
+
+# Static fayllarni ulash (Mini App interfeysi uchun)
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
+
+
+# --- ASOSIY ISHGA TUSHIRISH (BOT + FASTAPI SERVER) ---
 async def main():
-    print("Hosting Manager Bot ishga tushmoqda...")
+    print("Railway Bot Manager va File Editor ishga tushmoqda...")
     start_all_projects_auto()
     asyncio.create_task(scheduled_backup_task())
-    await dp.start_polling(bot)
+    
+    # Bot polling
+    asyncio.create_task(dp.start_polling(bot))
+    
+    # FastAPI uvicorn serveri
+    import uvicorn
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
 
 if __name__ == "__main__":
     asyncio.run(main())
