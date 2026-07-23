@@ -3,6 +3,7 @@ import shutil
 import zipfile
 import asyncio
 import subprocess
+import uvicorn
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
