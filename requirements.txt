@@ -7,3 +7,5 @@ aiohttp
 pydantic
 sqlalchemy
 apscheduler
+fastapi
+uvicorn
