@@ -99,8 +99,8 @@ async def cb_help_import(callback: types.CallbackQuery):
         "1. Yangi loyihangizni `.zip` formatida chatga yuboring.\n"
         "2. O'sha yuborgan ZIP faylingizga **reply** qilib quyidagi buyruqni yozing:\n"
         "`/import <loyiha_nomi>`\n\n"
-        "Masalan: `/import my_shop_bot`\n\n"
-        "Shundan so'ng bot uni avtomatik o'rnatadi va 24/7 yurgizib yuboradi.",
+        "Masalan: `/import scheduler-bot`\n\n"
+        "Shundan so'ng bot uni avtomatik o'rnatadi, kerakli kutubxonalarini (`requirements.txt`) o'rnatib, 24/7 yurgizib yuboradi.",
         reply_markup=get_main_menu()
     )
 
@@ -142,6 +142,13 @@ async def cmd_import(message: types.Message):
             zip_ref.extractall(proj_path)
         os.remove(zip_path)
         
+        # 1. Agar sub-loyihada requirements.txt bo'lsa, uni avtomatik o'rnatamiz
+        req_file = os.path.join(proj_path, "requirements.txt")
+        if os.path.exists(req_file):
+            await status_msg.edit_text(f"📦 `{project_name}` uchun kutubxonalar o'rnatilmoqda (`pip install`)...\nIltimos kuting ⏱")
+            subprocess.run(["pip", "install", "-r", req_file], cwd=proj_path, check=True)
+
+        # 2. Loyihani ishga tushiramiz
         main_file = os.path.join(proj_path, "main.py")
         if os.path.exists(main_file):
             process = subprocess.Popen(
@@ -157,7 +164,7 @@ async def cmd_import(message: types.Message):
         else:
             await status_msg.edit_text(f"⚠️ Loyiha joylandi, lekin ichida `main.py` topilmadi!", reply_markup=get_main_menu())
     except Exception as e:
-        await status_msg.edit_text(f"❌ Xatolik: {e}", reply_markup=get_main_menu())
+        await status_msg.edit_text(f"❌ Xatolik yuz berdi: {e}", reply_markup=get_main_menu())
 
 # --- 4. SERVERNI QAYTA YOQISH ---
 @dp.callback_query(F.data == "restart_all")
@@ -197,7 +204,17 @@ def start_all_projects_auto():
         return
     projects = [d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))]
     for proj in projects:
-        main_file = os.path.join(BASE_DIR, proj, "main.py")
+        proj_path = os.path.join(BASE_DIR, proj)
+        main_file = os.path.join(proj_path, "main.py")
+        
+        # Avto yoqishda ham kutubxonalarni tekshirib o'rnatib ketadi
+        req_file = os.path.join(proj_path, "requirements.txt")
+        if os.path.exists(req_file):
+            try:
+                subprocess.run(["pip", "install", "-r", req_file], cwd=proj_path, check=True)
+            except Exception as e:
+                print(f"Kutubxonalarni o'rnatishda xato ({proj}): {e}")
+
         if os.path.exists(main_file) and proj not in running_processes:
             try:
                 process = subprocess.Popen(
@@ -205,7 +222,7 @@ def start_all_projects_auto():
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    cwd=os.path.dirname(main_file)
+                    cwd=proj_path
                 )
                 running_processes[proj] = process
                 asyncio.create_task(monitor_project(proj, process))
