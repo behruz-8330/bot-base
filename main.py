@@ -195,12 +195,11 @@ async def cmd_edit_file(message: types.Message, state: FSMContext):
         
     await state.update_data(edit_file_path=full_path, proj_name=proj_name)
     
-    # Kodni xavfsiz ko'rsatish uchun bloklarni almashtiramiz
     safe_content = content[:3000].replace("```", "` ` `")
     await message.answer(
         f"✏️ **{file_path}** faylining Hozirgi kodi:\n\n"
         f"<code>{safe_content}</code>\n\n"
-        f"Iltimos, ushbu faylga yozmoqchi bo'lgan **YANGI TO'LIQ KODINGIZNI** yuboring:",
+        f"Iltimos, ushbu faylga yozmoqchi bo'lgan **YANGI KODNI MATN SHAKlida YOKI FAYL (document) ko'rinishida yuboring**:",
         reply_markup=get_main_menu(),
         parse_mode="HTML"
     )
@@ -214,9 +213,20 @@ async def save_edited_file(message: types.Message, state: FSMContext):
     file_path = data["edit_file_path"]
     proj_name = data["proj_name"]
     
+    new_content = ""
+    if message.document:
+        file_info = await bot.get_file(message.document.file_id)
+        downloaded_file = await bot.download_file(file_info.file_path)
+        new_content = downloaded_file.read().decode("utf-8")
+    elif message.text:
+        new_content = message.text
+    else:
+        await message.answer("❌ Iltimos, kodni matn yoki fayl ko'rinishida yuboring!")
+        return
+    
     try:
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(message.text)
+            f.write(new_content)
         await message.answer(f"✅ Fayl muvaffaqiyatli saqlandi va yangilandi!", reply_markup=get_main_menu())
         
         if proj_name in running_processes:
@@ -248,7 +258,7 @@ async def cmd_add_file_start(message: types.Message, state: FSMContext):
     full_path = os.path.join(BASE_DIR, proj_name, file_rel_path)
     
     await state.update_data(new_file_path=full_path)
-    await message.answer(f"📝 `{file_rel_path}` uchun **kodni** yuboring:", reply_markup=get_main_menu())
+    await message.answer(f"📝 `{file_rel_path}` uchun **kodni matn yoki fayl (document) shaklida** yuboring:", reply_markup=get_main_menu())
     await state.set_state(ProjectEditStates.waiting_for_file_content)
 
 @dp.message(ProjectEditStates.waiting_for_file_content)
@@ -258,10 +268,21 @@ async def save_new_file_content(message: types.Message, state: FSMContext):
     data = await state.get_data()
     file_path = data["new_file_path"]
     
+    new_content = ""
+    if message.document:
+        file_info = await bot.get_file(message.document.file_id)
+        downloaded_file = await bot.download_file(file_info.file_path)
+        new_content = downloaded_file.read().decode("utf-8")
+    elif message.text:
+        new_content = message.text
+    else:
+        await message.answer("❌ Iltimos, matn yoki fayl yuboring!")
+        return
+
     try:
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(message.text)
+            f.write(new_content)
         await message.answer(f"✅ Yangi fayl muvaffaqiyatli yaratildi!", reply_markup=get_main_menu())
     except Exception as e:
         await message.answer(f"❌ Xatolik: {e}", reply_markup=get_main_menu())
@@ -586,7 +607,7 @@ async def scheduled_backup_task():
             shutil.make_archive(zip_filename.replace('.zip', ''), 'zip', BASE_DIR)
             with open(zip_filename, "rb") as f:
                 file_bytes = f.read()
-            input_file = BufferedInputFile(file_bytes, filename=f"auto_backup_{timestamp}.zip")
+            input_file =BufferedInputFile(file_bytes, filename=f"auto_backup_{timestamp}.zip")
             await bot.send_document(chat_id=BACKUP_GROUP_ID, document=input_file, caption=f"🔄 **12 soatlik Avto-Backup**\n📅 Sana: `{timestamp}`")
             os.remove(zip_filename)
         except Exception as e:
