@@ -8,3 +8,4 @@ pydantic
 sqlalchemy
 apscheduler
 google-genai
+yt-dlp
