@@ -58,8 +58,10 @@ async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(
         "🤖 **Railway Bot Manager paneliga xush kelibsiz!**\n\n"
-        "Quyidagi menyu tugmalari yordamida loyihalarni boshqarishingiz mumkin:",
-        reply_markup=get_main_menu()
+        "Quyidagi menyu tugmalari yordamida loyihalarni boshqarishingiz mumkin:\n\n"
+        "💡 *Full Backup tiklash uchun auto-backup ZIP fayliga reply qilib `/restore` yuboring.*",
+        reply_markup=get_main_menu(),
+        parse_mode="Markdown"
     )
 
 @dp.message(F.text == "⬅️ Ortga menyuga")
@@ -495,7 +497,9 @@ async def msg_help_import(message: types.Message):
         "📥 **Loyiha import qilish tartibi:**\n\n"
         "1. Yangi loyihangizni `.zip` formatida chatga yuboring.\n"
         "2. O'sha yuborgan ZIP faylingizga **reply** qilib yozing:\n"
-        "`/import <loyiha_nomi>`",
+        "`/import <loyiha_nomi>`\n\n"
+        "🔄 **Butun tizimni (Full Backup) tiklash uchun:**\n"
+        "Barcha loyihalar jamlangan Full Backup ZIP fayliga reply qilib `/restore` deb yozing.",
         reply_markup=get_main_menu()
     )
 
@@ -550,7 +554,52 @@ async def cmd_import(message: types.Message):
     except Exception as e:
         await status_msg.edit_text(f"❌ Xatolik: {e}", reply_markup=get_main_menu())
 
-# --- 6. SERVERNI QAYTA YOQISH ---
+# --- 6. FULL BACKUP'NI QAYTA TIKLASH (RESTORE) ---
+@dp.message(Command("restore"))
+async def cmd_restore_full_backup(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    reply = message.reply_to_message
+    if not reply or not reply.document or not reply.document.file_name.endswith('.zip'):
+        await message.answer("❌ Tiklash uchun Full Backup ZIP fayliga **reply** qilib `/restore` yuboring!")
+        return
+
+    status_msg = await message.answer("⏳ **Full Backup tiklanmoqda...** Barcha faol loyihalar to'xtatilmoqda.")
+
+    # 1. Ishlayotgan barcha botlarni to'xtatamiz
+    for proj, proc in list(running_processes.items()):
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+    running_processes.clear()
+
+    try:
+        # 2. ZIP faylini yuklab olamiz
+        file_info = await bot.get_file(reply.document.file_id)
+        temp_zip = os.path.join(BACKUP_DIR, "temp_restore.zip")
+        await bot.download_file(file_info.file_path, destination=temp_zip)
+
+        # 3. /data/bot papkasini tozalab, zip ma'lumotlarini arxivdan chiqaramiz
+        if os.path.exists(BASE_DIR):
+            shutil.rmtree(BASE_DIR)
+        os.makedirs(BASE_DIR, exist_ok=True)
+
+        with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
+            zip_ref.extractall(BASE_DIR)
+
+        os.remove(temp_zip)
+
+        # 4. Barcha loyihalarni qayta ishga tushiramiz
+        start_all_projects_auto()
+
+        await status_msg.edit_text("✅ **Barcha loyihalar va ma'lumotlar avto-backupdan muvaffaqiyatli tiklandi va ishga tushirildi!**", reply_markup=get_main_menu())
+
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Full restore jarayonida xatolik: {e}", reply_markup=get_main_menu())
+
+# --- 7. SERVERNI QAYTA YOQISH ---
 @dp.message(F.text == "🔄 Serverni qayta yoqish")
 async def msg_restart(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -607,7 +656,7 @@ async def scheduled_backup_task():
             shutil.make_archive(zip_filename.replace('.zip', ''), 'zip', BASE_DIR)
             with open(zip_filename, "rb") as f:
                 file_bytes = f.read()
-            input_file =BufferedInputFile(file_bytes, filename=f"auto_backup_{timestamp}.zip")
+            input_file = BufferedInputFile(file_bytes, filename=f"auto_backup_{timestamp}.zip")
             await bot.send_document(chat_id=BACKUP_GROUP_ID, document=input_file, caption=f"🔄 **12 soatlik Avto-Backup**\n📅 Sana: `{timestamp}`")
             os.remove(zip_filename)
         except Exception as e:
@@ -621,4 +670,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
